@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='utf-8' />
+    <title>Scenic Routing</title>
+    <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
+    <script
+    src="https://code.jquery.com/jquery-3.2.1.js"
+    integrity="sha256-DZAnKJ/6XZ9si04Hgrsxu/8s717jcIzLy3oi35EouyE="
+  crossorigin="anonymous"></script>
+    <link href="https://api.mapbox.com/mapbox-assembly/v0.20.0/assembly.min.css" rel="stylesheet">
+    <script src='https://api.tiles.mapbox.com/mapbox-gl-js/v0.42.2/mapbox-gl.js'></script>
+    <link href='https://api.tiles.mapbox.com/mapbox-gl-js/v0.42.2/mapbox-gl.css' rel='stylesheet' />
+    <style>
+        body { margin:0; padding:0; }
+        #map { position:absolute; top:0; bottom:0; width:100%; }
+    </style>
+</head>
+<body>
+
+<div id='map'></div>
+
+<div class='absolute top left z2 round bg-white px24 py24'>
+  <h4 class='txt-h4'>The World's First Scenery Routing Application <span class='txt txt-light'>(?)</span></h4>
+  <div class='select-container'>
+    <select class='select select--stroke' id='cost-select'>
+        <option value="invMeanScore">Most Scenic</option>
+        <option value="meanScore">Least Scenic</option>
+        <option value="distance">Distance</option>
+    </select>
+    <div class='select-arrow'></div>
+  </div>
+</div>
+<script>
+mapboxgl.accessToken = 'pk.eyJ1Ijoic2NvdHRzZmFybGV5OTMiLCJhIjoiY2o4ODJxNjh4MWVndjJ3cWI5ODRlZ2hnayJ9.w9-dF3jh-GtQzk9h0wBUbw';
+var map = new mapboxgl.Map({
+    container: 'map', // container id
+    style: 'mapbox://styles/mapbox/streets-v9', // stylesheet location
+    center: [-122.419416, 37.774929], // starting position [lng, lat]
+    zoom: 9, // starting zoom
+    hash: true
+});
+
+const A = [-117,33];
+const B = [-122.419416, 39];
+var cost = "invMeanScore";
+
+var pointA = {
+  type: "Feature",
+  geometry: {
+    type: "Point",
+    coordinates: A
+  },
+  properties: {}
+}
+
+var pointB = {
+  type: "Feature",
+  geometry: {
+    type: "Point",
+    coordinates: B
+  },
+  properties: {}
+}
+
+var isCursorOverA;
+var isCursorOverB;
+
+getDemoRoute = function(A, B, cost){
+  fetch("http://localhost:8080/routes?A=" + A.join(",") + "&B=" + B.join(",") + "&cost=" + cost)
+    .then((resp)=>{
+      return resp.json();
+    })
+    .then((data)=>{
+      parseResponse(data, displayResponse);
+      console.log("done")
+    })
+    .catch((err)=>{
+      throw err;
+    })
+}
+
+parseResponse = function(responseData, next){
+  var geojson = {
+    type:"FeatureCollection",
+    features: []
+  }
+  responseData.forEach((feature)=>{
+    var geometry = JSON.parse(feature.geom);
+    var properties = {cost:feature.cost, name: feature.fullName, distance: feature.distance};
+    geojson.features.push({
+      type:"Feature",
+      geometry:geometry,
+      properties:properties
+    })
+  })
+  next(geojson)
+}
+
+displayResponse = function(geojson){
+  map.getSource("route").setData(geojson);
+}
+
+getGraph = function(){fetch("./scenic_graph-merged.geojson")
+  .then((resp)=>{
+    return resp.json();
+  })
+  .then((data)=>{
+    map.getSource("graph").setData(data);
+  })
+  .catch((err)=>{
+    throw err;
+  })
+}
+
+
+
+map.on('load', function(){
+  getGraph();
+  // var popup = new mapboxgl.Popup({closeOnClick: false})
+  //     .setLngLat(A)
+  //     .setHTML('<h3 class="txt txt-h3">A</h3>')
+  //     .addTo(map);
+  //
+  // var popup = new mapboxgl.Popup({closeOnClick: false})
+  //     .setLngLat(B)
+  //     .setHTML('<h3 class="txt txt-h3">B</h3>')
+  //     .addTo(map);
+
+
+      map.addSource('graph', { type: 'geojson', data: {type:"FeatureCollection", features:[]} });
+      map.addLayer({
+          "id": "graph",
+          "type": "line",
+          "source": "graph",
+          "paint":{
+            "line-color":{
+              "property":"meanScore",
+              "stops":[
+                [0, "darkred"],
+                [0.25, "red"],
+                [0.49, "rgba(0, 0, 0, 0)"],
+                [0.51,"orange"],
+                [0.75, "yellow"],
+                [1, "forestgreen"]
+              ]
+            },
+            "line-width": 2,
+            "line-opacity":0.7
+          }
+      });
+
+  map.addSource('route', { type: 'geojson', data: {type:"FeatureCollection", features:[]} });
+  map.addLayer({
+      "id": "route",
+      "type": "line",
+      "source": "route",
+      "paint":{
+        "line-color":"black",
+        "line-width": 2
+      }
+  });
+
+
+
+  // Add a single point to the map
+    map.addSource('pointA', {
+        "type": "geojson",
+        "data": pointA
+    });
+
+    map.addLayer({
+        "id": "pointA",
+        "type": "circle",
+        "source": "pointA",
+        "paint": {
+            "circle-radius": 10,
+            "circle-color": "#3887be"
+        }
+    });
+
+    // Add a single point to the map
+      map.addSource('pointB', {
+          "type": "geojson",
+          "data": pointB
+      });
+
+      map.addLayer({
+          "id": "pointB",
+          "type": "circle",
+          "source": "pointB",
+          "paint": {
+              "circle-radius": 10,
+              "circle-color": "#3887be"
+          }
+      });
+
+      // When the cursor enters a feature in the point layer, prepare for dragging.
+    map.on('mouseenter', 'pointA', function() {
+        map.setPaintProperty('pointA', 'circle-color', '#3bb2d0');
+        isCursorOverA = true;
+        map.dragPan.disable();
+    });
+
+    map.on('mouseleave', 'pointA', function() {
+        map.setPaintProperty('pointA', 'circle-color', '#3887be');
+        isCursorOverA = false;
+        map.dragPan.enable();
+    });
+
+    // When the cursor enters a feature in the point layer, prepare for dragging.
+  map.on('mouseenter', 'pointB', function() {
+      map.setPaintProperty('pointB', 'circle-color', '#3bb2d0');
+      isCursorOverB = true;
+      map.dragPan.disable();
+  });
+
+    map.on('mouseleave', 'pointB', function() {
+        map.setPaintProperty('pointB', 'circle-color', '#3887be');
+        isCursorOverB = false;
+        map.dragPan.enable();
+    });
+
+
+  getDemoRoute(pointA.geometry.coordinates, pointB.geometry.coordinates, cost);
+  map.on('mousedown', mouseDown);
+});
+
+var isDragging = false;
+
+moveA = function(e){onMove(e, 'A')};
+upA = function(e){onUp(e, 'A')};
+
+moveB = function(e){onMove(e, 'B')};
+upB = function(e){onUp(e, 'B')};
+
+
+
+function mouseDown() {
+    if (isCursorOverA){
+      // Mouse events
+      isDragging = true;
+      map.on('mousemove', moveA);
+      map.once('mouseup', upA );
+    }else if (isCursorOverB){
+      // Mouse events
+      isDragging = true;
+      map.on('mousemove', moveB);
+      map.once('mouseup',  upB);
+    }
+}
+
+
+function onMove(e, feature) {
+  if (isDragging){
+    var coords = e.lngLat;
+
+    if (feature == "A"){
+      console.log("Using A geojson")
+      geojson = pointA;
+    }else if (feature == "B"){
+      console.log("Using B geojson")
+      geojson = pointB;
+    }
+
+    // Update the Point feature in `geojson` coordinates
+    // and call setData to the source layer `point` on it.
+    geojson.geometry.coordinates = [coords.lng, coords.lat];
+    layer = 'point' + feature
+    map.getSource(layer).setData(geojson);
+  };
+}
+
+function onUp(e, feature) {
+  if (isDragging){
+    isDragging = false;
+    getDemoRoute(pointA.geometry.coordinates, pointB.geometry.coordinates, cost)
+    // Unbind mouse events
+    if (feature == "A")    map.off('mousemove', moveA);
+    else if (feature == "B") map.off('mousemove', moveB)
+  }
+}
+
+
+
+$("#cost-select").change(function(e){
+    cost = $("#cost-select").val();
+    getDemoRoute(pointA.geometry.coordinates, pointB.geometry.coordinates, cost)
+})
+
+</script>
+
+</body>
+</html>

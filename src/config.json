@@ -1,0 +1,6 @@
+{
+  "MapillaryToken": "TGN0QkdGWTlrVDFmNWVSaWRLSnBDdzpiZmRlNjFhN2Q0ZjRkNTAz",
+  "MapillarySecret":"ODY1ZmE1ZDMyZjA4YTk3MzdlOGFkMTNjMTAzYmE1N2E",
+  "pointsPerSegment": 3,
+  "maxImagesPerPoint": 3
+}
